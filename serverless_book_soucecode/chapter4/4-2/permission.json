@@ -1,0 +1,26 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "kinesis:ListStreams",
+                "logs:*",
+                "kinesis:GetRecords"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:BatchWriteItem",
+                "kinesis:GetShardIterator",
+                "kinesis:DescribeStream"
+            ],
+            "Resource": [
+                "arn:aws:kinesis:ap-northeast-1:111122223333:stream/twitter-stream",
+                "arn:aws:dynamodb:ap-northeast-1:111122223333:table/tweet-data"
+            ]
+        }
+    ]
+}

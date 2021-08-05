@@ -1,0 +1,234 @@
+■Chapter3
+$ aws kinesis create-stream --stream-name sample --shard-count 1
+$ aws kinesis list-streams
+$ pip install boto3
+$ python put-records.py
+$ aws sns create-topic --name sample
+$ aws cloudwatch put-metric-alarm \
+--alarm-name kinesis-mon --metric-name IncomingRecords \
+--namespace AWS/Kinesis --statistic Sum --period 60 \
+--threshold 10 --comparison-operator GreaterThanThreshold \
+--dimensions Name=StreamName,Value=sample \
+--evaluation-periods 1 \
+--alarm-actions arn:aws:sns:ap-northeast-1:111122223333:sample
+$ mkdir ~/resharding-function/
+$ cd ~/resharding-function/
+$ pip install -t ./ boto3
+$ aws iam create-role --role-name resharding_function_role \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam put-role-policy --role-name resharding_function_role \
+--policy-name basic-permission \
+--policy-document file://permission.json
+$ cd ~/resharding-function/
+$ zip -r9 ~/resharding-function.zip *
+$ aws lambda create-function --function-name resharding-function \
+--zip-file fileb://resharding-function.zip \
+--role arn:aws:iam::111122223333:role/resharding_function_role \
+--handler resharding-function.lambda_handler --runtime python3.6
+$ aws lambda add-permission --function-name resharding-function \
+--statement-id 1 --action "lambda:InvokeFunction" \
+--principal sns.amazonaws.com \
+--source-arn arn:aws:sns:ap-northeast-1:111122223333:sample
+$ python put-records.py
+$ aws kinesis describe-stream-summary --stream-name sample
+$ aws cloudwatch set-alarm-state --alarm-name kinesis-mon \
+--state-reason 'initializing' --state-value ALARM
+
+■Chapter4
+$ aws kinesis create-stream --stream-name twitter-stream \
+--shard-count 1
+$ aws kinesis list-streams
+$ aws dynamodb create-table --table-name tweet-data \
+--attribute-definitions AttributeName=id,AttributeType=N \
+AttributeName=timestamp,AttributeType=N \
+--key-schema AttributeName=id,KeyType=HASH \
+AttributeName=timestamp,KeyType=RANGE \
+--provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+$ aws iam create-role --role-name process-tweet-data-role \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam put-role-policy --role-name process-tweet-data-role \
+--policy-name dynamodb-access --policy-document \
+file://permission.json
+zip process-tweet-data.zip process-tweet-data.py
+$ aws lambda create-function --function-name process-tweet-data \
+--zip-file fileb://process-tweet-data.zip \
+--role arn:aws:iam::111122223333:role/process-tweet-data-role \
+--handler process-tweet-data.lambda_handler --runtime python3.6 \
+--environment Variables={TABLE_NAME=tweet-data}
+$ aws lambda create-event-source-mapping --event-source-\
+arn arn:aws:kinesis:ap-northeast-1:111122223333\
+:stream/twitter-stream \
+--function-name process-tweet-data --enabled \
+--starting-position LATEST
+$ python get-tweets.py
+$ aws dynamodb scan --table-name tweet-data
+
+■Chapter5
+$ aws s3 mb s3://serverless-app-web-20210805 --region ap-northeast-1
+$ aws s3 website s3://serverless-app-web-20210805/ --index-document index.html
+$ aws s3api put-bucket-policy --bucket serverless-app-web-20210805 \
+--policy file://policy.json
+$ mkdir ~/webapp/
+$ cd ~/webapp/
+$ aws s3 sync ~/webapp/ s3://serverless-app-web/
+$ aws dynamodb create-table --table-name photos \
+--attribute-definitions AttributeName=photo_id,AttributeType=S \
+--key-schema AttributeName=photo_id,KeyType=HASH \
+--provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
+$ aws iam create-role --role-name lambda-dynamodb-access \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam put-role-policy --role-name lambda-dynamodb-access \
+--policy-name dynamodb-access \
+--policy-document file://permission.json
+$ aws s3 mb s3://serverless-app-photos --region ap-northeast-1
+$ aws s3 website s3://serverless-app-photos/ \
+--index-document index.html
+$ aws s3api put-bucket-policy --bucket serverless-app-photos \
+--policy file://policy.json
+$ aws s3 mb s3://serverless-app-sam
+$ aws cloudformation package --template-file template.yaml \
+--output-template-file template-output.yaml \
+--s3-bucket serverless-app-sam
+$ aws cloudformation deploy --template-file template-output.yaml \
+--stack-name serverless-app --capabilities CAPABILITY_IAM \
+--region ap-northeast-1
+$ aws apigateway get-rest-apis --region ap-northeast-1
+$ curl -X POST https://1234abcdef.execute-api.ap-northeast-1.\
+amazonaws.com/Prod/images -d '{"type":"image/jpeg","size":1}'
+$ curl -X PUT -d '{"photo_id": "ee606c54-9303-46d2-8248-1f78c371c489", "timestamp": 1515350065, "status": "Uploaded"}' https://1234abcdef.execute-api.ap-northeast-1.amazonaws.com/Prod/images
+$ curl -X GET https://1234abcdef.execute-api.ap-northeast-1.\
+amazonaws.com/Prod/images
+$ curl -X POST https://1234abcdef.execute-api.ap-northeast-1.\
+amazonaws.com/Prod/images -d '{"type":"image/jpeg","size":1}'
+$ curl -X GET https://1234abcdef.execute-api.ap-northeast-1.amazonaws.com/Prod/images/XXXXXXXXXXXXXXXXXXXXX
+$ curl -X POST https://1234abcdef.execute-api.ap-northeast-1.\
+amazonaws.com/Prod/images -d '{"type":"image/jpeg","size":1}'
+$ curl -X DELETE -D - https://1234abcd.execute-api.ap-northeast-1.amazonaws.com/Prod/images/XXXXXXXXXXXXXXXX
+
+■Chapter5-3
+$ npm install -g vue-cli
+$ vue --version
+$ vue init webpack serverless-spa
+$ cd serverless-spa
+$ npm install
+$ npm run dev
+$ npm run build
+$ npm install axios --save
+$ aws s3api put-bucket-cors --bucket serverless-app-photos \
+--cors-configuration file://cors.json
+$ curl -I -X GET https://serverless-app-photos-.s3-website-ap-northeast-1.amazonaws.com/ -H "Origin: http://example.com"
+
+■Chapter5-4
+$ aws cloudformation create-stack --stack-name photo-app-pool \
+--region ap-northeast-1 \
+--template-body file://userpool-template.yaml
+$ aws cloudformation describe-stacks --stack-name photo-app-pool \
+--region ap-northeast-1
+$ npm install aws-sdk --save
+$ npm install amazon-cognito-identity-js --save
+$ aws cognito-idp list-user-pools --max-result 10 \
+--region ap-northeast-1
+$ npm run build
+$ cd dist
+$ aws s3 sync . s3://serverless-app-web/
+
+■Chapter5-5
+$ aws iam create-role --role-name lambda-imagerekognition-role \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam put-role-policy --role-name lambda-imagerekognition-role \
+--policy-name lambda-imagerekognition-policy \
+--policy-document file://permission.json
+$ aws cloudformation package --template-file template.yaml \
+--output-template-file template-output.yaml \
+--s3-bucket serverless-app-sam
+$ aws cloudformation deploy \
+--template-file template-output.yaml \
+--stack-name image-rekognition \
+--capabilities CAPABILITY_IAM --region ap-northeast-1
+$ aws cloudformation describe-stacks --stack-name image-rekognition \
+--region ap-northeast-1
+$ aws s3api put-bucket-notification-configuration \
+--bucket serverless-app-photos \
+--notification-configuration file://notification.json
+
+■Chapter6
+$ aws s3 mb s3://<your-backet-name> --region ap-northeast-1
+$ aws cloudformation package --template-file sample-sam.yml \
+--output-template-file sample-sam-output.yml \
+--s3-bucket <your-bucket-name>
+$ aws cloudformation deploy --template-file sample-sam-output.yml \
+--stack-name <your-stack-name> --capabilities CAPABILITY_IAM
+$ sam local start-api --template sample-sam.yml
+$ git clone \
+https://github.com/<github-username>/sample-serverless-pipeline.git
+$ cd sample-serverless-pipeline
+$ aws iam create-role \
+--role-name cloudformation-lambda-execution-role \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam put-role-policy \
+--role-name cloudformation-lambda-execution-role \
+--policy-name cloudformation-execution \
+--policy-document file://permission.json
+$ aws iam create-role --role-name code-pipeline-role \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam put-role-policy --role-name code-pipeline-role \
+--policy-name pipeline-service \
+--policy-document file://permission.json
+$ git add .
+$ git commit -m 'Initial commit'
+$ git push origin master
+$ aws codebuild create-project --cli-input-json file://project.json
+$ aws codepipeline create-pipeline \
+--cli-input-json file://pipeline.json
+$ aws codepipeline start-pipeline-execution \
+--name serverless-pipeline
+$ aws codepipeline get-pipeline-state --name serverless-pipeline
+
+■Chapter7
+$ aws iam create-role --role-name apigateway-to-logs \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam attach-role-policy \
+--policy-arn arn:aws:iam::aws:policy/service-role/AmazonAPIGatewayPushToCloudWatchLogs \
+--role-name apigateway-to-logs
+$ aws apigateway update-account --patch-operations op='replace',path='/cloudwatchRoleArn',\
+value='arn:aws:iam::111122223333:role/apigateway-to-logs'
+$ aws apigateway update-stage --rest-api-id xxxxxxxxxx \
+--stage-name 'prod' \
+--patch-operations op=replace,path=/*/*/logging/loglevel,value=INFO
+$ aws apigateway update-stage \
+--rest-api-id xxxxxxxxxx --stage-name 'prod' \
+--patch-operations op=replace,path=/*/*/logging/dataTrace,value=TRUE
+
+■Chapter7-2
+$ aws iam create-role --role-name basic-execution-role \
+--assume-role-policy-document file://trustpolicy.json
+$ aws iam attach-role-policy \
+--policy-arn arn:aws:iam::aws:policy/service-role/\
+AWSLambdaBasicExecutionRole \
+--role-name basic-execution-role
+$ aws iam attach-role-policy \
+--policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess \
+--role-name basic-execution-role
+$ aws iam attach-role-policy \
+--policy-arn arn:aws:iam::aws:policy/AWSXrayWriteOnlyAccess \
+--role-name basic-execution-role
+$ zip lambda_function.zip lambda_function.py
+$ aws lambda create-function \
+--function-name s3-get-object \
+--runtime python3.6 \
+--role arn:aws:iam::111122223333:role/basic-execution-role \
+--handler lambda_function.lambda_handler \
+--zip-file fileb://lambda_function.zip
+$ aws lambda add-permission --function-name s3-get-object \
+--statement-id 1 --action "lambda:InvokeFunction" \
+--principal s3.amazonaws.com \
+--source-arn arn:aws:s3:::x-ray-sample-bucket
+$ aws s3api put-bucket-notification-configuration \
+--bucket x-ray-sample-bucket \
+--notification-configuration file://notification.json
+$ aws lambda update-function-configuration \
+--function-name s3-get-object --tracing-config Mode=Active
+$ aws s3 cp ./sample.jpg s3://x-ray-sample-bucket/
+$ zip lambda_function.zip lambda_function.py
+$ aws lambda update-function-code \
+--function-name s3-get-object --zip-file fileb://lambda_function.zip
